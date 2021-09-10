@@ -1,0 +1,10 @@
+apiVersion: enterprise.splunk.com/v1
+kind: IndexerCluster
+metadata:
+  name: cl01 
+spec:
+  replicas: 3
+  clusterMasterRef: 
+    name: cm01 
+  licenseMasterRef:
+    name: lm01

@@ -1,0 +1,100 @@
+---
+# Source: splunk-connect-for-kubernetes/charts/splunk-kubernetes-logging/templates/daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sck-rendered-splunk-kubernetes-logging
+  labels:
+    app: splunk-kubernetes-logging
+    chart: splunk-kubernetes-logging-1.4.9
+    release: sck-rendered
+    heritage: Helm
+    engine: fluentd
+spec:
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: splunk-kubernetes-logging
+      release: sck-rendered
+  template:
+    metadata:
+      labels:
+        app: splunk-kubernetes-logging
+        release: sck-rendered
+      annotations:
+        checksum/config: 6b131119c69ec08c146647b342dde98584a2709ffcf8ec97504bf479fc1f2fcd
+    spec:
+      serviceAccountName: splunk-kubernetes-logging
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+      containers:
+      - name: splunk-fluentd-k8s-logs
+        image: docker.io/splunk/fluentd-hec:1.2.7
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        env:
+          - name: K8S_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: MY_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: SPLUNK_HEC_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: splunk-kubernetes-logging
+                key: splunk_hec_token
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+        - name: varlogdest
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: journallogpath
+          mountPath: "/var/log/journal"
+          readOnly: true
+        - name: conf-configmap
+          mountPath: /fluentd/etc
+        - name: secrets
+          mountPath: /fluentd/etc/splunk
+          readOnly: true
+        ports:
+        livenessProbe:
+          httpGet:
+            path: /api/plugins.json
+            port: 24220
+          initialDelaySeconds: 60
+          periodSeconds: 60
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlogdest
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: journallogpath
+        hostPath:
+          path: "/var/log/journal"
+      - name: conf-configmap
+        configMap:
+          name: sck-rendered-splunk-kubernetes-logging
+      - name: secrets
+        secret:
+          secretName: splunk-kubernetes-logging

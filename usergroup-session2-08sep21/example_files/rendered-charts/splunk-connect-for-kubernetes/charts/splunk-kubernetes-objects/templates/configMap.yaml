@@ -1,0 +1,134 @@
+---
+# Source: splunk-connect-for-kubernetes/charts/splunk-kubernetes-objects/templates/configMap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sck-rendered-splunk-kubernetes-objects
+  labels:
+    app: splunk-kubernetes-objects
+    chart: splunk-kubernetes-objects-1.4.9
+    release: sck-rendered
+    heritage: Helm
+data:
+  fluent.conf: |
+    <system>
+      log_level info
+    </system>
+    <source>
+      @type kubernetes_objects
+      tag kube.objects.*
+      api_version "apps/v1"
+      insecure_ssl true
+      <pull>
+        resource_name daemon_sets
+        interval 60s
+      </pull>
+      <pull>
+        resource_name deployments
+        interval 60s
+      </pull>
+      <pull>
+        resource_name replica_sets
+        interval 60s
+      </pull>
+      <pull>
+        resource_name stateful_sets
+        interval 60s
+      </pull>
+    </source>
+    <source>
+      @type kubernetes_objects
+      tag kube.objects.*
+      api_version "v1"
+      insecure_ssl true
+      <pull>
+        resource_name pods
+        interval 60s
+      </pull>
+      <pull>
+        resource_name nodes
+        interval 60s
+      </pull>
+      <pull>
+        resource_name component_statuses
+        interval 60s
+      </pull>
+      <pull>
+        resource_name config_maps
+        interval 60s
+      </pull>
+      <pull>
+        resource_name namespaces
+        interval 60s
+      </pull>
+      <pull>
+        resource_name persistent_volumes
+        interval 60s
+      </pull>
+      <pull>
+        resource_name persistent_volume_claims
+        interval 60s
+      </pull>
+      <pull>
+        resource_name resource_quotas
+        interval 60s
+      </pull>
+      <pull>
+        resource_name services
+        interval 60s
+      </pull>
+      <pull>
+        resource_name service_accounts
+        interval 60s
+      </pull>
+      <watch>
+        resource_name events
+      </watch>
+    </source>
+
+    <source>
+      @id fluentd-monitor-agent
+      @type monitor_agent
+    </source>
+
+    <filter kube.**>
+      @type jq_transformer
+      # in ruby '\\' will escape and become just '\', since we need two '\' in the `gsub` jq filter, it becomes '\\\\'.
+      jq '.record.source = "namespace:\(env.MY_NAMESPACE)/pod:\(env.MY_POD_NAME)" | .record.sourcetype = (.tag | gsub("\\\\."; ":")) | .record'
+    </filter>
+
+    <filter kube.**>
+      @type jq_transformer
+      jq '.record.cluster_name = "cluster-5752" | .record'
+    </filter>
+
+    # = custom filters specified by users =
+
+    <match **>
+      @type splunk_hec
+      protocol https
+      hec_host "splunk-cl01-indexer-service.splunk.svc.cluster.local"
+      hec_port 8088
+      hec_token "#{ENV['SPLUNK_HEC_TOKEN']}"
+      host "#{ENV['NODE_NAME']}"
+      source_key source
+      sourcetype_key sourcetype
+      index em_meta
+      insecure_ssl true
+      <fields>
+        cluster_name
+      </fields>
+      app_name splunk-kubernetes-objects
+      app_version 1.4.9
+      <buffer>
+        @type memory
+        chunk_limit_records 10000
+        chunk_limit_size 20m
+        flush_interval 5s
+        flush_thread_count 1
+        overflow_action block
+        retry_max_times 5
+        retry_type periodic
+        total_limit_size 600m
+      </buffer>
+    </match>

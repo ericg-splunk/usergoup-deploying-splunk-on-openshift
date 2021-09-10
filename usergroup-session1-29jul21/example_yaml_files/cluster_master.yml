@@ -1,0 +1,7 @@
+apiVersion: enterprise.splunk.com/v1
+kind: ClusterMaster 
+metadata:
+  name: cm01 
+spec:
+  licenseMasterRef:
+    name: lm01

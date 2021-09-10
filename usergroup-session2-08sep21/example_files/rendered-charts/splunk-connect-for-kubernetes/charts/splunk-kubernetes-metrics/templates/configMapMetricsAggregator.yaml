@@ -1,0 +1,97 @@
+---
+# Source: splunk-connect-for-kubernetes/charts/splunk-kubernetes-metrics/templates/configMapMetricsAggregator.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sck-rendered-splunk-kubernetes-metrics-aggregator
+  labels:
+    app: splunk-kubernetes-metrics
+    chart: splunk-kubernetes-metrics-1.4.9
+    release: sck-rendered
+    heritage: Helm
+data:
+  fluent.conf: |
+    # system wide configurations
+    <system>
+      log_level info
+    </system>
+    <source>
+      @type kubernetes_metrics_aggregator
+      tag kube.*
+      cluster_name cluster-5752
+      interval 60s
+    </source>
+    <source>
+      @id fluentd-monitor-agent
+      @type monitor_agent
+    </source>
+    <filter kube.**>
+      @type record_modifier
+      <record>
+        metric_name ${tag}
+        cluster_name cluster-5752
+      </record>
+    </filter>
+    <filter kube.cluster.**>
+      @type record_modifier
+      <record>
+        source ${record['name']}
+      </record>
+    </filter>
+    <filter kube.namespace.**>
+      @type record_modifier
+      <record>
+        source ${record['name']}
+      </record>
+    </filter>
+    <filter kube.node.**>
+      @type record_modifier
+      <record>
+        source ${record['node']}
+      </record>
+    </filter>
+    <filter kube.pod.**>
+      @type record_modifier
+      <record>
+        source ${record['node']}/${record['pod-name']}
+      </record>
+    </filter>
+    <filter kube.sys-container.**>
+      @type record_modifier
+      <record>
+        source ${record['node']}/${record['pod-name']}/${record['name']}
+      </record>
+    </filter>
+    <filter kube.container.**>
+      @type record_modifier
+      <record>
+        source ${record['node']}/${record['pod-name']}/${record['container-name']}
+      </record>
+    </filter>
+    <match kube.**>
+      @type splunk_hec
+      data_type metric
+      metric_name_key metric_name
+      metric_value_key value
+      protocol https
+      hec_host "splunk-cl01-indexer-service.splunk.svc.cluster.local"
+      hec_port 8088
+      hec_token "#{ENV['SPLUNK_HEC_TOKEN']}"
+      host "#{ENV['NODE_NAME']}"
+      index em_metrics
+      source source
+      insecure_ssl true
+      app_name splunk-kubernetes-metrics
+      app_version 1.4.9
+      <buffer>
+        @type memory
+        chunk_limit_records 10000
+        chunk_limit_size 10m
+        flush_interval 5s
+        flush_thread_count 1
+        overflow_action block
+        retry_max_times 5
+        retry_type periodic
+        total_limit_size 400m
+      </buffer>
+    </match>

@@ -1,0 +1,81 @@
+---
+# Source: splunk-connect-for-kubernetes/charts/splunk-kubernetes-objects/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sck-rendered-splunk-kubernetes-objects
+  labels:
+    app: splunk-kubernetes-objects
+    chart: splunk-kubernetes-objects-1.4.9
+    release: sck-rendered
+    heritage: Helm
+spec:
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: splunk-kubernetes-objects
+      release: sck-rendered
+      engine: fluentd
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: splunk-kubernetes-objects
+        release: sck-rendered
+        engine: fluentd
+      annotations:
+        checksum/config: 4538b854ebd6cefa573cd5ff7b6eab40ad7b1b4b8f625dfccfd6ffb3ef56cf9a
+    spec:
+      serviceAccountName: splunk-kubernetes-objects
+      terminationGracePeriodSeconds: 30
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+      
+      containers:
+      - name: splunk-fluentd-k8s-objects
+        image: docker.io/splunk/kube-objects:1.1.6
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: MY_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: SPLUNK_HEC_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: splunk-kubernetes-objects
+                key: splunk_hec_token
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        securityContext:
+          runAsNonRoot: false
+        volumeMounts:
+        - name: conf-configmap
+          mountPath: /fluentd/etc
+        - name: secrets
+          mountPath: /fluentd/etc/splunk
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /api/plugins.json
+            port: 24220
+          initialDelaySeconds: 60
+          periodSeconds: 60
+      volumes:
+      - name: conf-configmap
+        configMap:
+          name: sck-rendered-splunk-kubernetes-objects
+      - name: secrets
+        secret:
+          secretName: splunk-kubernetes-objects

@@ -1,0 +1,9 @@
+apiVersion: enterprise.splunk.com/v1
+kind: Standalone 
+metadata:
+  name: sh01 
+spec:
+  clusterMasterRef: 
+    name: cm01
+  licenseMasterRef:
+    name: lm01

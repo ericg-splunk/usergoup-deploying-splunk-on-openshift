@@ -1,0 +1,117 @@
+---
+# Source: splunk-connect-for-kubernetes/charts/splunk-kubernetes-metrics/templates/configMap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sck-rendered-splunk-kubernetes-metrics
+  labels:
+    app: splunk-kubernetes-metrics
+    chart: splunk-kubernetes-metrics-1.4.9
+    release: sck-rendered
+    heritage: Helm
+data:
+  fluent.conf: |
+    # system wide configurations
+    <system>
+      log_level info
+    </system>
+    <source>
+      @type kubernetes_metrics
+      tag kube.*
+      node_name "#{ENV['NODE_NAME']}"
+      kubelet_address "#{ENV['KUBERNETES_NODE_IP']}"
+      kubelet_port 10250
+      use_rest_client_ssl true
+      insecure_ssl true
+      cluster_name cluster-5752
+      interval 60s
+    </source>
+    <filter kube.node.**>
+      @type record_modifier
+      <record>
+        entity_type k8s_node_ocp
+      </record>
+    </filter>
+    <filter kube.pod.**>
+      @type record_modifier
+      <record>
+        entity_type k8s_pod_ocp
+      </record>
+    </filter>
+
+    <source>
+      @id fluentd-monitor-agent
+      @type monitor_agent
+    </source>
+    <filter kube.node.**>
+      @type record_modifier
+      <record>
+        entity_type k8s_node_ocp
+      </record>
+    </filter>
+    <filter kube.pod.**>
+      @type record_modifier
+      <record>
+        entity_type k8s_pod_ocp
+      </record>
+    </filter>
+
+    <filter kube.**>
+      @type record_modifier
+      <record>
+        metric_name ${tag}
+        cluster_name cluster-5752
+      </record>
+    </filter>
+    <filter kube.node.**>
+      @type record_modifier
+      <record>
+        source ${record['node']}
+      </record>
+    </filter>
+    <filter kube.pod.**>
+      @type record_modifier
+      <record>
+        source ${record['node']}/${record['pod-name']}
+      </record>
+    </filter>
+    <filter kube.sys-container.**>
+      @type record_modifier
+      <record>
+        source ${record['node']}/${record['pod-name']}/${record['name']}
+      </record>
+    </filter>
+    <filter kube.container.**>
+      @type record_modifier
+      <record>
+        source ${record['node']}/${record['pod-name']}/${record['container-name']}
+      </record>
+    </filter>
+    # = custom filters specified by users =
+    <match kube.**>
+      @type splunk_hec
+      data_type metric
+      metric_name_key metric_name
+      metric_value_key value
+      protocol https
+      hec_host "splunk-cl01-indexer-service.splunk.svc.cluster.local"
+      hec_port 8088
+      hec_token "#{ENV['SPLUNK_HEC_TOKEN']}"
+      host "#{ENV['NODE_NAME']}"
+      index em_metrics
+      source ${tag}
+      insecure_ssl true
+      app_name splunk-kubernetes-metrics
+      app_version 1.4.9
+      <buffer>
+        @type memory
+        chunk_limit_records 10000
+        chunk_limit_size 10m
+        flush_interval 5s
+        flush_thread_count 1
+        overflow_action block
+        retry_max_times 5
+        retry_type periodic
+        total_limit_size 400m
+      </buffer>
+    </match>
